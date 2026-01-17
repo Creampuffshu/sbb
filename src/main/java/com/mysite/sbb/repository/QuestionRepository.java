@@ -1,7 +1,7 @@
 package com.mysite.sbb.repository;
 
-import com.mysite.sbb.domain.Answer;
 import com.mysite.sbb.domain.Question;
+import com.mysite.sbb.domain.SiteUser;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -25,7 +25,7 @@ public class QuestionRepository {
     }
 
     public Question save(Question question) {
-        String sql = "insert into question(subject, content, create_date) values (?, ?, ?)";
+        String sql = "insert into question(subject, content, create_date, modify_date, author_id) values (?, ?, ?, ?, ?)";
         KeyHolder keyHolder = new GeneratedKeyHolder();
         template.update(connection -> {
             //자동 증가 키
@@ -33,6 +33,8 @@ public class QuestionRepository {
             ps.setString(1, question.getSubject());
             ps.setString(2, question.getContent());
             ps.setObject(3, question.getCreateDate());
+            ps.setObject(4, question.getModifyDate());
+            ps.setObject(5, question.getAuthor().getId());
             return ps;
         }, keyHolder);
 
@@ -42,9 +44,12 @@ public class QuestionRepository {
     }
 
     public Optional<Question> findById(Integer id) {
-        String sql = "select id,subject,content,create_date from question where id = ?";
+        String sql = "select q.* ,(select count(*) from answer a where a.question_id = q.id) as answer_count, " +
+                "u.id as u_id, u.username, u.password, u.email " +
+                "from question q left join site_user u on q.author_id = u.id where q.id = ?";
+
         try{
-            Question question = template.queryForObject(sql, questionRowMapper(), id);
+            Question question = template.queryForObject(sql, questionWithAuthorRowMapper(), id);
             return Optional.of(question);
         }catch(EmptyResultDataAccessException e) {
             return Optional.empty();
@@ -52,7 +57,7 @@ public class QuestionRepository {
     }
 
     public List<Question> findAll() {
-        String sql = "select id,subject,content,create_date from question";
+        String sql = "select * from question";
         return template.query(sql, questionRowMapper());
     }
 
@@ -79,7 +84,54 @@ public class QuestionRepository {
             question.setSubject(rs.getString("subject"));
             question.setContent(rs.getString("content"));
             question.setCreateDate(rs.getObject("create_date", LocalDateTime.class));
+            question.setModifyDate(rs.getObject("modify_date", LocalDateTime.class));
+
             return question;
         });
+    }
+
+    private RowMapper<Question> questionWithAuthorRowMapper() {
+        return ((rs,rowNum)->{
+            Question question = new Question();
+            question.setId(rs.getInt("id"));
+            question.setSubject(rs.getString("subject"));
+            question.setContent(rs.getString("content"));
+            question.setCreateDate(rs.getObject("create_date", LocalDateTime.class));
+            question.setModifyDate(rs.getObject("modify_date", LocalDateTime.class));
+            question.setAnswerCount(rs.getInt("answer_count"));
+
+
+            SiteUser siteUser = new SiteUser();
+            siteUser.setId(rs.getInt("u_id"));
+            siteUser.setUsername(rs.getString("username"));
+            siteUser.setPassword(rs.getString("password"));
+            siteUser.setEmail(rs.getString("email"));
+
+            question.setAuthor(siteUser);
+            return question;
+        });
+    }
+
+    public List<Question> findPage(int offset, int size) {
+        String sql = "select q.* ,(select count(*) from answer a where a.question_id = q.id) as answer_count, " +
+                "u.id as u_id, u.username, u.password, u.email " +
+                "from question q left join site_user u on q.author_id = u.id order by q.create_date desc limit ? offset ?";
+
+        return template.query(sql, questionWithAuthorRowMapper(), size, offset);
+    }
+
+    public Long count(){
+        String sql = "select count(*) from question";
+        return template.queryForObject(sql,Long.class);
+    }
+
+    public void update(Integer questionId, String subject, String content, LocalDateTime modifyDate) {
+        String sql = "update question set subject = ?, content = ?, modify_date = ? where id = ?";
+        template.update(sql, subject, content, modifyDate,questionId);
+    }
+
+    public void delete(Integer questionId) {
+        String sql = "delete from question where id = ?";
+        template.update(sql, questionId);
     }
 }

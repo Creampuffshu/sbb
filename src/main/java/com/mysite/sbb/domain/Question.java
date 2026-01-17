@@ -20,4 +20,9 @@ public class Question {
     private String content;
 
     private LocalDateTime createDate;
+    private LocalDateTime modifyDate;
+
+    private SiteUser author;
+
+    private int answerCount;
 }

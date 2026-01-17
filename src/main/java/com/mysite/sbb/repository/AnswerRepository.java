@@ -2,6 +2,7 @@ package com.mysite.sbb.repository;
 
 import com.mysite.sbb.domain.Answer;
 import com.mysite.sbb.domain.Question;
+import com.mysite.sbb.domain.SiteUser;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -26,14 +27,16 @@ public class AnswerRepository {
     }
 
     public Answer save(Answer answer) {
-        String sql = "insert into answer(content,create_date,question_id) values(?,?,?)";
+        String sql = "insert into answer(content,create_date,modify_date, question_id,author_id) values(?,?,?,?,?)";
         KeyHolder keyHolder = new GeneratedKeyHolder();
         template.update(connection -> {
             //자동 증가 키
             PreparedStatement ps = connection.prepareStatement(sql, new String[]{"id"});
             ps.setString(1, answer.getContent());
             ps.setObject(2, answer.getCreateDate());
-            ps.setObject(3, answer.getQuestionId());
+            ps.setObject(3, answer.getModifyDate());
+            ps.setObject(4, answer.getQuestionId());
+            ps.setObject(5,answer.getAuthor().getId());
             return ps;
         }, keyHolder);
 
@@ -53,8 +56,28 @@ public class AnswerRepository {
     }
 
     public List<Answer> findByQuestionId(Integer questionId) {
-        String sql = "select * from answer where question_id = ?";
-        return template.query(sql, answerRowMapper(), questionId);
+        String sql = "select a.*, u.id as u_id, u.username, u.password, u.email from answer a left join " +
+                "site_user u on a.author_id = u.id where a.question_id = ?";
+        return template.query(sql, answerWithAuthorRowMapper(), questionId);
+    }
+
+    private RowMapper<Answer> answerWithAuthorRowMapper() {
+        return ((rs,rowNum)->{
+            Answer answer = new Answer();
+            answer.setId(rs.getInt("id"));
+            answer.setQuestionId(rs.getInt("question_id"));
+            answer.setContent(rs.getString("content"));
+            answer.setCreateDate(rs.getObject("create_date", LocalDateTime.class));
+
+            SiteUser user = new SiteUser();
+            user.setId(rs.getInt("u_id"));
+            user.setUsername(rs.getString("username"));
+            user.setPassword(rs.getString("password"));
+            user.setEmail(rs.getString("email"));
+
+            answer.setAuthor(user);
+            return answer;
+        });
     }
 
     private RowMapper<Answer> answerRowMapper() {

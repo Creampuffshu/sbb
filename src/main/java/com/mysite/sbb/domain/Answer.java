@@ -11,5 +11,7 @@ public class Answer {
     private Integer id;
     private String content;
     private LocalDateTime createDate;
+    private LocalDateTime modifyDate;
     private Integer questionId;
+    private SiteUser author;
 }
