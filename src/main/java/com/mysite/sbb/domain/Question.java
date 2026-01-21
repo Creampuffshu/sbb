@@ -25,4 +25,6 @@ public class Question {
     private SiteUser author;
 
     private int answerCount;
+
+    private int voteCount;
 }

@@ -6,10 +6,10 @@ import com.mysite.sbb.domain.Question;
 import com.mysite.sbb.domain.SiteUser;
 import com.mysite.sbb.repository.QuestionRepository;
 import com.mysite.sbb.repository.UserRepository;
-import groovy.util.logging.Slf4j;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.config.ConfigDataLocationNotFoundException;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-@lombok.extern.slf4j.Slf4j
 @RequiredArgsConstructor
 @Service
 @Slf4j
@@ -48,10 +47,10 @@ public class QuestionService {
         questionRepository.save(q);
     }
 
-    public PageResponse<Question> getPage(int page){
+    public PageResponse<Question> getPage(int page,String kw){
         Long total = questionRepository.count();
         int offset = page * 10;
-        List<Question> questionList = questionRepository.findPage(offset, 10);
+        List<Question> questionList = questionRepository.findPage(offset, 10,kw);
         return new PageResponse<Question>(questionList, total, page, 10);
 
     }
@@ -63,4 +62,10 @@ public class QuestionService {
     public void delete(Question question){
         questionRepository.delete(question.getId());
     }
+
+    public void vote(Question question,SiteUser siteUser){
+
+        questionRepository.vote(question, siteUser);
+    }
+
 }

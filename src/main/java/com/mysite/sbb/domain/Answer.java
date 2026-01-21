@@ -14,4 +14,5 @@ public class Answer {
     private LocalDateTime modifyDate;
     private Integer questionId;
     private SiteUser author;
+    private int voteCount;
 }

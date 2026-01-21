@@ -45,6 +45,7 @@ public class QuestionRepository {
 
     public Optional<Question> findById(Integer id) {
         String sql = "select q.* ,(select count(*) from answer a where a.question_id = q.id) as answer_count, " +
+                "(select count(*) from question_voter v where v.question_id = q.id) as vote_count, " +
                 "u.id as u_id, u.username, u.password, u.email " +
                 "from question q left join site_user u on q.author_id = u.id where q.id = ?";
 
@@ -99,6 +100,7 @@ public class QuestionRepository {
             question.setCreateDate(rs.getObject("create_date", LocalDateTime.class));
             question.setModifyDate(rs.getObject("modify_date", LocalDateTime.class));
             question.setAnswerCount(rs.getInt("answer_count"));
+            question.setVoteCount(rs.getInt("vote_count"));
 
 
             SiteUser siteUser = new SiteUser();
@@ -112,12 +114,36 @@ public class QuestionRepository {
         });
     }
 
-    public List<Question> findPage(int offset, int size) {
-        String sql = "select q.* ,(select count(*) from answer a where a.question_id = q.id) as answer_count, " +
+    public List<Question> findPage(int offset, int size,String kw) {
+        String sql = "select distinct q.*, " +
+                "(select count(*) from answer a where a.question_id = q.id) as answer_count, " +
+                "(select count(*) from question_voter v where v.question_id = q.id) as vote_count, " +
                 "u.id as u_id, u.username, u.password, u.email " +
-                "from question q left join site_user u on q.author_id = u.id order by q.create_date desc limit ? offset ?";
+                "from question q " +
+                "left join site_user u on q.author_id = u.id " +
 
-        return template.query(sql, questionWithAuthorRowMapper(), size, offset);
+                "left join answer a_search on q.id = a_search.question_id " +
+                "left join site_user u_answer on a_search.author_id = u_answer.id " +
+
+                "where " +
+                "   q.subject like ? " +
+                "   or q.content like ? " +
+                "   or u.username like ? " +
+                "   or a_search.content like ? " +
+                "   or u_answer.username like ? " +
+
+                "order by q.create_date desc limit ? offset ?";
+
+        Object[] params = new Object[] {
+                "%"+kw+"%",
+                "%"+kw+"%",
+                "%"+kw+"%",
+                "%"+kw+"%",
+                "%"+kw+"%",
+                size,
+                offset
+        };
+        return template.query(sql, questionWithAuthorRowMapper(), params);
     }
 
     public Long count(){
@@ -133,5 +159,20 @@ public class QuestionRepository {
     public void delete(Integer questionId) {
         String sql = "delete from question where id = ?";
         template.update(sql, questionId);
+    }
+
+    public void vote(Question question, SiteUser siteUser) {
+        String sql = "insert into question_voter (question_id, voter_id) values (?, ?)";
+        template.update(sql, question.getId(), siteUser.getId());
+    }
+
+    public void cancelVote(Question question, SiteUser siteUser) {
+        String sql = "delete from question_voter where question_id = ? and voter_id = ?";
+        template.update(sql, question.getId(), siteUser.getId());
+    }
+
+    public int getVoteCount(Question question) {
+        String sql = "select count(*) from question_voter where question_id = ?";
+        return template.queryForObject(sql, Integer.class, question.getId());
     }
 }

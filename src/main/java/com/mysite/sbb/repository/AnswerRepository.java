@@ -46,19 +46,37 @@ public class AnswerRepository {
     }
 
     public Optional<Answer> findById(Integer id) {
-        String sql = "select * from answer where id = ?";
+        String sql = "select a.*, (select count(*) from answer_voter v where v.answer_id = a.id) as vote_count, " +
+                "u.id as u_id, u.username, u.password, u.email from answer a left join " +
+                "site_user u on a.author_id = u.id where a.id = ?";
         try{
-            Answer answer = template.queryForObject(sql, answerRowMapper(), id);
+            Answer answer = template.queryForObject(sql, answerWithAuthorRowMapper(), id);
             return Optional.of(answer);
         }catch(EmptyResultDataAccessException e) {
             return Optional.empty();
         }
     }
 
+    public void update(Answer answer, String content,LocalDateTime modifyDate){
+        String sql = "update answer set content=?, modify_date=? where id=?";
+        template.update(sql, content,modifyDate,answer.getId());
+    }
+
+    public void delete(Answer answer){
+        String sql = "delete from answer where id=?";
+        template.update(sql,answer.getId());
+    }
+
     public List<Answer> findByQuestionId(Integer questionId) {
-        String sql = "select a.*, u.id as u_id, u.username, u.password, u.email from answer a left join " +
+        String sql = "select a.*, (select count(*) from answer_voter v where v.answer_id = a.id) as vote_count, " +
+                "u.id as u_id, u.username, u.password, u.email from answer a left join " +
                 "site_user u on a.author_id = u.id where a.question_id = ?";
         return template.query(sql, answerWithAuthorRowMapper(), questionId);
+    }
+
+    public void vote(Answer answer, SiteUser siteUser) {
+        String sql = "insert into answer_voter (answer_id, voter_id) values (?, ?)";
+        template.update(sql, answer.getId(), siteUser.getId());
     }
 
     private RowMapper<Answer> answerWithAuthorRowMapper() {
@@ -68,6 +86,8 @@ public class AnswerRepository {
             answer.setQuestionId(rs.getInt("question_id"));
             answer.setContent(rs.getString("content"));
             answer.setCreateDate(rs.getObject("create_date", LocalDateTime.class));
+            answer.setModifyDate(rs.getObject("modify_date", LocalDateTime.class));
+            answer.setVoteCount(rs.getInt("vote_count"));
 
             SiteUser user = new SiteUser();
             user.setId(rs.getInt("u_id"));
@@ -87,6 +107,7 @@ public class AnswerRepository {
             answer.setQuestionId(rs.getInt("question_id"));
             answer.setContent(rs.getString("content"));
             answer.setCreateDate(rs.getObject("create_date", LocalDateTime.class));
+            answer.setModifyDate(rs.getObject("modify_date", LocalDateTime.class));
             return answer;
         });
     }

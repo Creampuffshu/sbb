@@ -11,6 +11,10 @@ import com.mysite.sbb.service.QuestionService;
 import com.mysite.sbb.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
@@ -18,6 +22,7 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.security.Principal;
 import java.util.List;
@@ -25,6 +30,7 @@ import java.util.List;
 @Controller
 @RequiredArgsConstructor
 @RequestMapping("/question")
+@Slf4j
 public class QuestionController {
 
     private final QuestionService questionService;
@@ -32,9 +38,11 @@ public class QuestionController {
     private final UserService userService;
 
     @GetMapping("/list")
-    public String list(Model model, @RequestParam(value="page", defaultValue = "0") int page){
-        PageResponse<Question> paging = questionService.getPage(page);
+    public String list(Model model, @RequestParam(value="page", defaultValue = "0") int page,
+                       @RequestParam(value="kw", defaultValue = "")String kw){
+        PageResponse<Question> paging = questionService.getPage(page,kw);
         model.addAttribute("paging",paging);
+        model.addAttribute("kw",kw);
         return "question_list";
     }
 
@@ -42,6 +50,7 @@ public class QuestionController {
     public String detail(Model model, @PathVariable("id") Integer id, AnswerForm answerForm) {
         Question question = questionService.getQuestion(id);
         List<Answer> answerList = answerService.getAnswerByQuestion(id);
+
         model.addAttribute("question",question);
         model.addAttribute("answerList",answerList);
         return "question_detail";
@@ -100,6 +109,21 @@ public class QuestionController {
         }
         this.questionService.delete(question);
         return "redirect:/";
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/vote/{id}")
+    public String questionVote(Principal principal, @PathVariable("id") Integer id, RedirectAttributes redirectAttributes) {
+        Question question = questionService.getQuestion(id);
+        SiteUser siteUser = userService.getUser(principal.getName());
+        try{
+            questionService.vote(question,siteUser);
+        }catch (DuplicateKeyException e){
+            redirectAttributes.addFlashAttribute("msg","이미 추천했습니다.");
+            return String.format("redirect:/question/detail/%s",id);
+        }
+
+        return String.format("redirect:/question/detail/%s",id);
     }
 
 }
